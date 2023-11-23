@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Search Results</h1>
+
+    <form id="search-form">
+        <div class="form-group">
+            <label for="level">Log Level:</label>
+            <input type="text" id="level" name="level">
+        </div>
+    
+        <div class="form-group">
+            <label for="message">Message:</label>
+            <input type="text" id="message" name="message">
+        </div>
+    
+        <div class="form-group">
+            <label for="commit">Commit:</label>
+            <input type="text" id="commit" name="commit">
+        </div>
+    
+        <div class="form-group">
+            <label for="trace_id">Trace ID:</label>
+            <input type="text" id="trace_id" name="trace_id">
+        </div>
+    
+        <div class="form-group">
+            <label for="span_id">Span ID:</label>
+            <input type="text" id="span_id" name="span_id">
+        </div>
+    
+        <div class="form-group">
+            <label for="resource_id">Resource ID:</label>
+            <input type="text" id="resource_id" name="resource_id">
+        </div>
+    
+        <div class="form-group">
+            <label for="start_date">Start Date:</label>
+            <input type="text" id="start_date" name="start_date">
+        </div>
+    
+        <div class="form-group">
+            <label for="end_date">End Date:</label>
+            <input type="text" id="end_date" name="end_date">
+        </div>
+    
+        <button type="button" onclick="searchLogs()">Search</button>
+    </form>
+    
+
+    <!-- Display search results here -->
+    <ul id="results-table"></ul>
+
+<br>
+    <h1>Log Viewer</h1>
+    <table id='logs-table'>
+        <tr>
+            <th>Level</th>
+            <th>Message</th>
+            <th>Resource ID</th>
+            <th>Timestamp</th>
+            <th>Trace ID</th>
+            <th>Span ID</th>
+            <th>Commit</th>
+            <th>Parent Resource ID</th>
+            <!-- Add more columns for additional log details -->
+        </tr>
+    
+        {% for log in logs %}
+            <tr>
+                <td>{{ log.level }}</td>
+                <td>{{ log.message }}</td>
+                <td>{{ log.resourceId }}</td>
+                <td>{{ log.timestamp }}</td>
+                <td>{{ log.traceId }}</td>
+                <td>{{ log.spanId }}</td>
+                <td>{{ log.commit }}</td>
+                <td>{{ log.metadata.parentResourceId }}</td>
+                <!-- Add more cells for additional log details -->
+            </tr>
+        {% endfor %}
+    </table>
+
+    <script>
+        function searchLogs() {
+            // Retrieve search parameters
+            var level = document.getElementById('level').value;
+            var message = document.getElementById('message').value;
+            var start_date = document.getElementById('start_date').value;
+            var end_date = document.getElementById('end_date').value;
+            var commit = document.getElementById('commit').value;
+            var trace_id = document.getElementById('trace_id').value;
+            var span_id = document.getElementById('span_id').value;
+            var resource_id = document.getElementById('resource_id').value;
+
+
+            var jsonData = {};
+            if (level) jsonData.level = level;
+            if (message) jsonData.message = message;
+            if (start_date) jsonData.start_date = start_date;
+            if (end_date) jsonData.end_date = end_date;
+            if (commit) jsonData.commit = commit;
+            if (trace_id) jsonData.trace_id = trace_id;
+            if (span_id) jsonData.span_id = span_id;
+            if (resource_id) jsonData.resource_id = resource_id;
+        
+            console.log(JSON.stringify(jsonData));
+
+            // Make POST request using Fetch API
+            fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(jsonData)
+            })
+            .then(response => response.json())
+            .then(data => {
+
+                var resultsTable = document.getElementById('results-table');
+                resultsTable.innerHTML = ''; // Clear previous results
+            
+                // Create table header
+                var tableHeader = document.createElement('tr');
+                tableHeader.innerHTML = `
+                    <th>Level</th>
+                    <th>Message</th>
+                    <th>Resource ID</th>
+                    <th>Timestamp</th>
+                    <th>Trace ID</th>
+                    <th>Span ID</th>
+                    <th>Commit</th>
+                    <th>Parent Resource ID</th>
+                `;
+                resultsTable.appendChild(tableHeader);
+            
+                // Display new results
+                for (var i = 0; i < data.length; i++) {
+                    var log = data[i]._source;
+                    var tableRow = document.createElement('tr');
+                    tableRow.innerHTML = `
+                        <td>${log.level}</td>
+                        <td>${log.message}</td>
+                        <td>${log.resourceId}</td>
+                        <td>${log.timestamp}</td>
+                        <td>${log.traceId}</td>
+                        <td>${log.spanId}</td>
+                        <td>${log.commit}</td>
+                        <td>${log.metadata.parentResourceId}</td>
+                    `;
+                    resultsTable.appendChild(tableRow);
+                }
+                
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
+
+
+
+<!-- index.html (Client-side) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.3/socket.io.js"></script>
+<script>
+  const socket = io.connect('http://' + document.domain + ':' + location.port + '/logs');
+
+  socket.on('log_ingested', function(data) {
+    console.log('Log ingested:', data.log_data);
+    // Update your UI with the new log data in table format
+    updateTable(data.log_data);
+  });
+
+  function updateTable(logData) {
+    // Assuming you have a table with the id 'logs-table'
+    const table = document.getElementById('logs-table');
+
+    // Create a new row
+    const row = table.insertRow();
+
+    // Add cells with log data
+    const levelCell = row.insertCell(0);
+    const messageCell = row.insertCell(1);
+    const resourceIdCell = row.insertCell(2);
+    const timestampCell = row.insertCell(3);
+    const traceIdCell = row.insertCell(4);
+    const spanIdCell = row.insertCell(5);
+    const commitCell = row.insertCell(6);
+    const parentResouceIdCell = row.insertCell(7);
+
+    // Assign log data to cells
+    levelCell.textContent = logData.level;
+    messageCell.textContent = logData.message;
+    resourceIdCell.textContent = logData.resourceId;
+    timestampCell.textContent = logData.timestamp;
+    traceIdCell.textContent = logData.traceId;
+    spanIdCell.textContent = logData.spanId;
+    commitCell.textContent = logData.commit;
+    parentResouceIdCell.textContent = logData.metadata.parentResourceId;
+
+  }
+</script>
+
+
+</body>
+</html>
